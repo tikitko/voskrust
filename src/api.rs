@@ -1,5 +1,6 @@
 use std::ffi::{CStr, CString};
 use std::os::raw;
+use std::sync::Arc;
 use crate::extract_json::extract_json;
 
 use crate::raw::vosk_set_log_level;
@@ -12,9 +13,9 @@ use crate::raw::vosk_recognizer_final_result;
 use crate::raw::VoskModel;
 use crate::raw::VoskRecognizer;
 
-
+#[derive(Debug, Clone)]
 pub struct Model {
-    inner: ModelInner,
+    inner: Arc<ModelInner>,
 }
 
 pub struct Recognizer {
@@ -26,9 +27,13 @@ pub fn set_log_level(level: raw::c_int) {
     unsafe { vosk_set_log_level(level) }
 }
 
+#[derive(Debug)]
 struct ModelInner {
     ptr: *mut VoskModel,
 }
+
+unsafe impl Sync for ModelInner {}
+unsafe impl Send for ModelInner {}
 
 impl Model {
     /// provide a path to an existing model on disk. will error if the
@@ -40,11 +45,12 @@ impl Model {
             return None;
         }
         let inner = ModelInner { ptr: model };
+        let inner = Arc::new(inner);
         Some(Model { inner })
     }
 
     fn ptr(&self) -> *mut VoskModel {
-        self.inner.ptr
+        self.inner.as_ref().ptr
     }
 }
 
