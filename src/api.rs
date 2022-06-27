@@ -5,22 +5,15 @@ use crate::extract_json::extract_json;
 
 use crate::raw::vosk_set_log_level;
 use crate::raw::vosk_model_new;
+use crate::raw::vosk_model_free;
 use crate::raw::vosk_recognizer_new;
 use crate::raw::vosk_recognizer_new_grm;
 use crate::raw::vosk_recognizer_accept_waveform_s;
 use crate::raw::vosk_recognizer_partial_result;
 use crate::raw::vosk_recognizer_final_result;
+use crate::raw::vosk_recognizer_free;
 use crate::raw::VoskModel;
 use crate::raw::VoskRecognizer;
-
-#[derive(Debug, Clone)]
-pub struct Model {
-    inner: Arc<ModelInner>,
-}
-
-pub struct Recognizer {
-    ptr: *mut VoskRecognizer,
-}
 
 /// use -1 for no logs, 0 for default, 1 for verbose
 pub fn set_log_level(level: raw::c_int) {
@@ -34,6 +27,19 @@ struct ModelInner {
 
 unsafe impl Sync for ModelInner {}
 unsafe impl Send for ModelInner {}
+
+impl Drop for ModelInner {
+    fn drop(&mut self) {
+        unsafe {
+            vosk_model_free(self.ptr);
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Model {
+    inner: Arc<ModelInner>,
+}
 
 impl Model {
     /// provide a path to an existing model on disk. will error if the
@@ -51,6 +57,16 @@ impl Model {
 
     fn ptr(&self) -> *mut VoskModel {
         self.inner.as_ref().ptr
+    }
+}
+
+pub struct Recognizer {
+    ptr: *mut VoskRecognizer,
+}
+
+impl Drop for Recognizer {
+    fn drop(&mut self) {
+        unsafe { vosk_recognizer_free(self.ptr) }
     }
 }
 

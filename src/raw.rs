@@ -22,11 +22,14 @@ pub struct VoskRecognizer {
 
 #[link(name = "vosk")]
 extern {
+    /// Set log level for Kaldi messages
+    pub fn vosk_set_log_level(log_level: raw::c_int);
+
     /// Loads model data from the path and returns the model object
     pub fn vosk_model_new(model_path: *const raw::c_char) -> *mut VoskModel;
 
-    /// Set log level for Kaldi messages
-    pub fn vosk_set_log_level(log_level: raw::c_int);
+    /// Releases the model memory
+    pub fn vosk_model_free(model: *mut VoskModel);
 
     /// creates the recognizer object. takes a model, and a sample rate (should be 16000 as f32)
     pub fn vosk_recognizer_new(model: *mut VoskModel, sample_rate: f32) -> *mut VoskRecognizer;
@@ -41,6 +44,9 @@ extern {
     /// Returns partial speech recognition
     pub fn vosk_recognizer_partial_result(recognizer: *mut VoskRecognizer) -> *const raw::c_char;
 
-    /// Returns speech recognition result.
+    /// Returns speech recognition result
     pub fn vosk_recognizer_final_result(recognizer: *mut VoskRecognizer) -> *const raw::c_char;
+
+    /// Releases recognizer object
+    pub fn vosk_recognizer_free(recognizer: *mut VoskRecognizer);
 }
