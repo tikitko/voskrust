@@ -60,21 +60,32 @@ impl Model {
     }
 }
 
-pub struct Recognizer {
+#[derive(Debug)]
+struct RecognizerInner {
     ptr: *mut VoskRecognizer,
 }
 
-impl Drop for Recognizer {
+unsafe impl Sync for RecognizerInner {}
+unsafe impl Send for RecognizerInner {}
+
+impl Drop for RecognizerInner {
     fn drop(&mut self) {
         unsafe { vosk_recognizer_free(self.ptr) }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct Recognizer {
+    inner: Arc<RecognizerInner>,
 }
 
 impl Recognizer {
     /// use `16000 as f32` for sample rate
     pub fn new(model: &Model, sample_rate: f32) -> Recognizer {
         let recognizer = unsafe { vosk_recognizer_new(model.ptr(), sample_rate) };
-        Recognizer { ptr: recognizer }
+        let inner = RecognizerInner { ptr: recognizer };
+        let inner = Arc::new(inner);
+        Recognizer { inner }
     }
 
     /// can optionally provide a `grammar` as an array of string phrases.
@@ -94,7 +105,13 @@ impl Recognizer {
         let recognizer = unsafe {
             vosk_recognizer_new_grm(model.ptr(), sample_rate, cstr.as_ptr())
         };
-        Recognizer { ptr: recognizer }
+        let inner = RecognizerInner { ptr: recognizer };
+        let inner = Arc::new(inner);
+        Recognizer { inner }
+    }
+
+    fn ptr(&self) -> *mut VoskRecognizer {
+        self.inner.as_ref().ptr
     }
 
     /// enter more data for vosk to process.
@@ -108,7 +125,7 @@ impl Recognizer {
     /// its final guess of the speech entered
     pub fn accept_waveform(&mut self, buf: &[i16]) -> bool {
         let completed = unsafe {
-            vosk_recognizer_accept_waveform_s(self.ptr, buf.as_ptr(), buf.len() as i32)
+            vosk_recognizer_accept_waveform_s(self.ptr(), buf.as_ptr(), buf.len() as i32)
         };
         completed != 0
     }
@@ -121,7 +138,7 @@ impl Recognizer {
     /// and then use `final_result instead
     pub fn partial_result<'a>(&'a mut self) -> &'a str {
         let c_str = unsafe {
-            let ptr = vosk_recognizer_partial_result(self.ptr);
+            let ptr = vosk_recognizer_partial_result(self.ptr());
             CStr::from_ptr(ptr)
         };
         let s = c_str.to_str().expect("failed to convert cstr to string");
@@ -134,7 +151,7 @@ impl Recognizer {
     /// it does some extra cleanup
     pub fn final_result<'a>(&'a mut self) -> &'a str {
         let c_str = unsafe {
-            let ptr = vosk_recognizer_final_result(self.ptr);
+            let ptr = vosk_recognizer_final_result(self.ptr());
             CStr::from_ptr(ptr)
         };
         let s = c_str.to_str().expect("failed to convert cstr to string");
